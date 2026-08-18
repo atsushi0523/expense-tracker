@@ -9,6 +9,12 @@
   --color-danger: #b3432b;
   --radius: 16px;
   --tap-min: 52px;
+  --series-food: #2a78d6;
+  --series-daily: #eb6834;
+  --series-transport: #1baf7a;
+  --series-social: #eda100;
+  --series-other: #e87ba4;
+  --series-fixed: #4a3aa7;
   font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Yu Gothic UI', 'Segoe UI', sans-serif;
 }
 
@@ -222,6 +228,74 @@ input:focus {
   line-height: 1.1;
 }
 
+.pie-card {
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  padding: 20px 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.pie-card-title {
+  font-size: 1rem;
+  margin: 0 0 14px;
+}
+
+.pie-chart {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.pie-chart-svg {
+  width: 160px;
+  height: 160px;
+}
+
+.pie-empty {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  text-align: center;
+  margin: 0;
+}
+
+.pie-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pie-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+
+.pie-legend-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.pie-legend-label {
+  color: var(--color-text);
+}
+
+.pie-legend-percent {
+  color: var(--color-text-muted);
+}
+
+.pie-legend-amount {
+  font-weight: 700;
+  margin-left: auto;
+}
+
 .recent-list {
   background: var(--color-surface);
   border-radius: var(--radius);
@@ -245,11 +319,25 @@ input:focus {
 .recent-list-item {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 10px;
   font-size: 0.95rem;
   border-bottom: 1px solid var(--color-border);
   padding-bottom: 10px;
+}
+
+.recent-list-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
 }
 
 .recent-list-item:last-child {
@@ -270,6 +358,13 @@ input:focus {
 .recent-list-amount {
   font-weight: 700;
   margin-left: auto;
+}
+
+.recent-list-delete {
+  flex-shrink: 0;
+  padding: 4px 2px;
+  min-height: auto;
+  font-size: 0.85rem;
 }
 
 .profile-list {
@@ -347,6 +442,44 @@ input:focus {
 .fixed-cost-amount {
   color: var(--color-text-muted);
   font-size: 0.9rem;
+}
+
+.detail-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  padding: 4px 16px;
+}
+
+.detail-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.detail-row:last-child {
+  border-bottom: none;
+}
+
+.detail-label {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+.detail-value {
+  font-weight: 600;
+  text-align: right;
+}
+
+.detail-value--amount {
+  font-size: 1.3rem;
+  color: var(--color-primary);
 }
 
 .fixed-cost-form {

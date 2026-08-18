@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
-import type { Profile } from './types'
+import type { Expense, Profile } from './types'
 import { listProfiles } from './db'
 import { ProfileSelect } from './screens/ProfileSelect'
 import { Home } from './screens/Home'
 import { Capture } from './screens/Capture'
 import { Confirm } from './screens/Confirm'
 import { FixedCosts } from './screens/FixedCosts'
+import { ExpenseDetail } from './screens/ExpenseDetail'
 
-type Screen = 'home' | 'capture' | 'confirm' | 'fixedCosts'
+type Screen = 'home' | 'capture' | 'confirm' | 'fixedCosts' | 'expenseDetail'
 
 const CURRENT_USER_KEY = 'expense-tracker:currentUserId'
 
@@ -26,6 +27,7 @@ export default function App() {
   const [checkingStoredProfile, setCheckingStoredProfile] = useState(true)
   const [screen, setScreen] = useState<Screen>('home')
   const [captureResult, setCaptureResult] = useState<CaptureResult | null>(null)
+  const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
@@ -92,6 +94,23 @@ export default function App() {
     )
   }
 
+  if (screen === 'expenseDetail' && selectedExpense) {
+    return (
+      <ExpenseDetail
+        expense={selectedExpense}
+        onDeleted={() => {
+          setSelectedExpense(null)
+          setRefreshKey((k) => k + 1)
+          setScreen('home')
+        }}
+        onBack={() => {
+          setSelectedExpense(null)
+          setScreen('home')
+        }}
+      />
+    )
+  }
+
   if (screen === 'fixedCosts') {
     return (
       <FixedCosts
@@ -110,6 +129,10 @@ export default function App() {
       onCapture={() => setScreen('capture')}
       onFixedCosts={() => setScreen('fixedCosts')}
       onSwitchProfile={handleSwitchProfile}
+      onSelectExpense={(expense) => {
+        setSelectedExpense(expense)
+        setScreen('expenseDetail')
+      }}
       refreshKey={refreshKey}
     />
   )

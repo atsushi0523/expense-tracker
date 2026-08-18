@@ -1,5 +1,6 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
-import type { Profile, Expense, FixedCost, FixedCostMonthlyRecord } from './types'
+import type { Category, Expense, FixedCost, FixedCostMonthlyRecord, Profile } from './types'
+import { CATEGORIES, CATEGORY_SLUGS } from './types'
 
 interface ExpenseTrackerDB extends DBSchema {
   profiles: {
@@ -90,6 +91,11 @@ export async function listExpensesForUser(userId: string): Promise<Expense[]> {
   return db.getAllFromIndex('expenses', 'userId', userId)
 }
 
+export async function deleteExpense(id: string): Promise<void> {
+  const db = await getDb()
+  await db.delete('expenses', id)
+}
+
 // --- Fixed costs ---
 
 export async function listFixedCosts(userId: string): Promise<FixedCost[]> {
@@ -155,4 +161,42 @@ export function sumExpensesForMonth(expenses: Expense[], yearMonth: string): num
 
 export function sumRecordsForMonth(records: FixedCostMonthlyRecord[], yearMonth: string): number {
   return records.filter((r) => r.yearMonth === yearMonth).reduce((sum, r) => sum + r.amount, 0)
+}
+
+export interface CategoryBreakdownSlice {
+  key: string
+  label: string
+  amount: number
+}
+
+// Fixed category order (never re-sorted by amount) so a slice's color always
+// identifies the same category from month to month.
+export function categoryBreakdownForMonth(
+  expenses: Expense[],
+  records: FixedCostMonthlyRecord[],
+  yearMonth: string,
+): CategoryBreakdownSlice[] {
+  const monthExpenses = expenses.filter((e) => e.date.startsWith(yearMonth))
+
+  const byCategory: Record<Category, number> = Object.fromEntries(CATEGORIES.map((c) => [c, 0])) as Record<
+    Category,
+    number
+  >
+  for (const expense of monthExpenses) {
+    byCategory[expense.category] += expense.amount
+  }
+
+  const slices: CategoryBreakdownSlice[] = CATEGORIES.map((category) => ({
+    key: CATEGORY_SLUGS[category],
+    label: category,
+    amount: byCategory[category],
+  }))
+
+  slices.push({
+    key: 'fixed',
+    label: '固定費',
+    amount: sumRecordsForMonth(records, yearMonth),
+  })
+
+  return slices
 }

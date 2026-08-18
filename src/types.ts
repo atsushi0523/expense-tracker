@@ -2,6 +2,15 @@ export const CATEGORIES = ['食費', '日用品', '交通費', '交際費', 'そ
 
 export type Category = (typeof CATEGORIES)[number]
 
+// ASCII slugs for CSS custom-property names (--series-<slug>), keyed by category.
+export const CATEGORY_SLUGS: Record<Category, string> = {
+  食費: 'food',
+  日用品: 'daily',
+  交通費: 'transport',
+  交際費: 'social',
+  その他: 'other',
+}
+
 export interface Profile {
   id: string
   name: string
