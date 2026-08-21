@@ -63,7 +63,7 @@
 | 領域 | 技術 |
 | --- | --- |
 | フロントエンド | React 18 + TypeScript + Vite |
-| バックエンド | Express（レシート画像解析APIのプロキシ用） |
+| バックエンド | Express（ローカル開発用）/ Vercel Serverless Functions（本番用）。ロジックは `server/extractAmount.js` に共通化 |
 | AI | Claude API（`@anthropic-ai/sdk`, モデル: `claude-haiku-4-5`, JSON Schema構造化出力） |
 | データ保存 | IndexedDB（`idb`） |
 
@@ -97,6 +97,16 @@ npm run dev
 
 ブラウザで `http://localhost:5173` を開くとアプリが使えます。Viteが `/api` へのリクエストを自動でバックエンドにプロキシします。
 
+### 4. Vercelへのデプロイ
+
+本番環境では `server/index.js`（Express）は使われません。代わりに `api/extract-amount.js` がVercel Serverless Functionとしてデプロイされ、同じロジック（`server/extractAmount.js`）を実行します。
+
+1. Vercelにこのリポジトリをインポートします（Framework Preset: Vite のまま自動検出でOK）。
+2. Vercelプロジェクトの **Settings → Environment Variables** に `ANTHROPIC_API_KEY` を設定します（`.env.local` はコミットされないため、ここで別途設定が必須です）。
+3. デプロイすると、静的ファイル（`dist/`）に加えて `api/extract-amount.js` がサーバーレス関数として公開され、`/api/extract-amount` へのリクエストを処理します。
+
+> 注意: Vercel Serverless Functionsのリクエストボディには約4.5MBの上限があります。大きな写真をbase64化すると超過する可能性があるため、極端に大きい画像では読み取りに失敗することがあります。
+
 ## スクリプト
 
 | コマンド | 内容 |
@@ -110,8 +120,11 @@ npm run dev
 
 ```
 .
+├── api/
+│   └── extract-amount.js      # 本番用: Vercel Serverless Function（POST /api/extract-amount）
 ├── server/
-│   └── index.js               # レシート画像→Claudeで金額・日付・店名を抽出するAPI
+│   ├── extractAmount.js       # レシート画像→Claudeで金額・日付・店名を抽出する共通ロジック
+│   └── index.js                # ローカル開発用: Expressサーバー（同ロジックをラップ）
 ├── src/
 │   ├── screens/
 │   │   ├── ProfileSelect.tsx   # プロフィール選択・作成
@@ -132,6 +145,6 @@ npm run dev
 
 ## 注意事項
 
-- `ANTHROPIC_API_KEY` はサーバー（`server/index.js`）側でのみ使用され、フロントエンドのコードやブラウザには一切露出しません。
+- `ANTHROPIC_API_KEY` はサーバー側（ローカルは `server/index.js`、本番は `api/extract-amount.js`）でのみ使用され、フロントエンドのコードやブラウザには一切露出しません。
 - Claudeの読み取り結果（金額・日付・店名）は必ず確認画面で表示され、誤りがあれば保存前に手動で修正できます。
 - データはブラウザのIndexedDBにのみ保存されるため、ブラウザのデータを消去する、または別の端末・ブラウザからアクセスすると過去のデータは参照できません。バックアップやエクスポート機能は現時点ではありません。
