@@ -1,52 +1,82 @@
-import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
+import { supabase } from './supabase'
 import type { Category, Expense, FixedCost, FixedCostMonthlyRecord, Profile } from './types'
 import { CATEGORIES, CATEGORY_SLUGS } from './types'
 
-interface ExpenseTrackerDB extends DBSchema {
-  profiles: {
-    key: string
-    value: Profile
-  }
-  expenses: {
-    key: string
-    value: Expense
-    indexes: { userId: string }
-  }
-  fixedCosts: {
-    key: string
-    value: FixedCost
-    indexes: { userId: string }
-  }
-  fixedCostMonthlyRecords: {
-    key: string
-    value: FixedCostMonthlyRecord
-    indexes: { userId: string }
+// Rows come back from Postgres in snake_case; the app's types keep their
+// existing camelCase shape, with `userId` meaning the profile id.
+
+interface ProfileRow {
+  id: string
+  name: string
+  created_at: string
+}
+
+interface ExpenseRow {
+  id: string
+  profile_id: string
+  amount: number | string
+  date: string
+  category: Category
+  memo: string
+  created_at: string
+}
+
+interface FixedCostRow {
+  id: string
+  profile_id: string
+  name: string
+  amount: number | string
+  occurrence_day: string
+  created_at: string
+}
+
+interface MonthlyRecordRow {
+  id: string
+  profile_id: string
+  fixed_cost_id: string | null
+  name: string
+  amount: number | string
+  year_month: string
+  created_at: string
+}
+
+function toProfile(row: ProfileRow): Profile {
+  return { id: row.id, name: row.name, createdAt: row.created_at }
+}
+
+function toExpense(row: ExpenseRow): Expense {
+  return {
+    id: row.id,
+    userId: row.profile_id,
+    amount: Number(row.amount),
+    date: row.date,
+    category: row.category,
+    memo: row.memo,
+    createdAt: row.created_at,
   }
 }
 
-const DB_NAME = 'expense-tracker-db'
-const DB_VERSION = 1
-
-let dbPromise: Promise<IDBPDatabase<ExpenseTrackerDB>> | null = null
-
-function getDb() {
-  if (!dbPromise) {
-    dbPromise = openDB<ExpenseTrackerDB>(DB_NAME, DB_VERSION, {
-      upgrade(db) {
-        db.createObjectStore('profiles', { keyPath: 'id' })
-
-        const expenses = db.createObjectStore('expenses', { keyPath: 'id' })
-        expenses.createIndex('userId', 'userId')
-
-        const fixedCosts = db.createObjectStore('fixedCosts', { keyPath: 'id' })
-        fixedCosts.createIndex('userId', 'userId')
-
-        const records = db.createObjectStore('fixedCostMonthlyRecords', { keyPath: 'id' })
-        records.createIndex('userId', 'userId')
-      },
-    })
+function toFixedCost(row: FixedCostRow): FixedCost {
+  return {
+    id: row.id,
+    userId: row.profile_id,
+    name: row.name,
+    amount: Number(row.amount),
+    occurrenceDay: row.occurrence_day,
+    createdAt: row.created_at,
   }
-  return dbPromise
+}
+
+function toMonthlyRecord(row: MonthlyRecordRow): FixedCostMonthlyRecord {
+  return {
+    id: row.id,
+    userId: row.profile_id,
+    fixedCostId: row.fixed_cost_id,
+    name: row.name,
+    amount: Number(row.amount),
+    yearMonth: row.year_month,
+    createdAt: row.created_at,
+  }
 }
 
 export function getYearMonth(date: Date = new Date()): string {
@@ -58,99 +88,108 @@ export function getYearMonth(date: Date = new Date()): string {
 // --- Profiles ---
 
 export async function listProfiles(): Promise<Profile[]> {
-  const db = await getDb()
-  return db.getAll('profiles')
+  const { data, error } = await supabase.from('profiles').select('*').order('created_at')
+  if (error) throw error
+  return (data as ProfileRow[]).map(toProfile)
 }
 
 export async function createProfile(name: string): Promise<Profile> {
-  const db = await getDb()
-  const profile: Profile = {
-    id: crypto.randomUUID(),
-    name,
-    createdAt: new Date().toISOString(),
-  }
-  await db.put('profiles', profile)
-  return profile
+  const { data, error } = await supabase.from('profiles').insert({ name }).select().single()
+  if (error) throw error
+  return toProfile(data as ProfileRow)
 }
 
 // --- Expenses ---
 
 export async function addExpense(input: Omit<Expense, 'id' | 'createdAt'>): Promise<Expense> {
-  const db = await getDb()
-  const expense: Expense = {
-    ...input,
-    id: crypto.randomUUID(),
-    createdAt: new Date().toISOString(),
-  }
-  await db.put('expenses', expense)
-  return expense
+  const { data, error } = await supabase
+    .from('expenses')
+    .insert({
+      profile_id: input.userId,
+      amount: input.amount,
+      date: input.date,
+      category: input.category,
+      memo: input.memo,
+    })
+    .select()
+    .single()
+  if (error) throw error
+  return toExpense(data as ExpenseRow)
 }
 
 export async function listExpensesForUser(userId: string): Promise<Expense[]> {
-  const db = await getDb()
-  return db.getAllFromIndex('expenses', 'userId', userId)
+  const { data, error } = await supabase.from('expenses').select('*').eq('profile_id', userId)
+  if (error) throw error
+  return (data as ExpenseRow[]).map(toExpense)
 }
 
 export async function deleteExpense(id: string): Promise<void> {
-  const db = await getDb()
-  await db.delete('expenses', id)
+  const { error } = await supabase.from('expenses').delete().eq('id', id)
+  if (error) throw error
 }
 
 // --- Fixed costs ---
 
 export async function listFixedCosts(userId: string): Promise<FixedCost[]> {
-  const db = await getDb()
-  return db.getAllFromIndex('fixedCosts', 'userId', userId)
+  const { data, error } = await supabase
+    .from('fixed_costs')
+    .select('*')
+    .eq('profile_id', userId)
+    .order('created_at')
+  if (error) throw error
+  return (data as FixedCostRow[]).map(toFixedCost)
 }
 
 export async function addFixedCost(input: Omit<FixedCost, 'id' | 'createdAt'>): Promise<FixedCost> {
-  const db = await getDb()
-  const fixedCost: FixedCost = {
-    ...input,
-    id: crypto.randomUUID(),
-    createdAt: new Date().toISOString(),
-  }
-  await db.put('fixedCosts', fixedCost)
-  await generateMonthlyRecordForFixedCost(fixedCost, getYearMonth())
+  const { data, error } = await supabase
+    .from('fixed_costs')
+    .insert({
+      profile_id: input.userId,
+      name: input.name,
+      amount: input.amount,
+      occurrence_day: input.occurrenceDay,
+    })
+    .select()
+    .single()
+  if (error) throw error
+  const fixedCost = toFixedCost(data as FixedCostRow)
+  await generateMonthlyRecords([fixedCost], getYearMonth())
   return fixedCost
 }
 
 export async function deleteFixedCost(id: string): Promise<void> {
-  const db = await getDb()
-  await db.delete('fixedCosts', id)
+  const { error } = await supabase.from('fixed_costs').delete().eq('id', id)
+  if (error) throw error
 }
 
 // --- Fixed cost monthly records ---
 
 export async function listMonthlyRecordsForUser(userId: string): Promise<FixedCostMonthlyRecord[]> {
-  const db = await getDb()
-  return db.getAllFromIndex('fixedCostMonthlyRecords', 'userId', userId)
+  const { data, error } = await supabase.from('fixed_cost_monthly_records').select('*').eq('profile_id', userId)
+  if (error) throw error
+  return (data as MonthlyRecordRow[]).map(toMonthlyRecord)
 }
 
-async function generateMonthlyRecordForFixedCost(fixedCost: FixedCost, yearMonth: string): Promise<void> {
-  const db = await getDb()
-  const existing = await db.getAllFromIndex('fixedCostMonthlyRecords', 'userId', fixedCost.userId)
-  const already = existing.some((r) => r.fixedCostId === fixedCost.id && r.yearMonth === yearMonth)
-  if (already) return
-
-  const record: FixedCostMonthlyRecord = {
-    id: crypto.randomUUID(),
-    userId: fixedCost.userId,
-    fixedCostId: fixedCost.id,
-    name: fixedCost.name,
-    amount: fixedCost.amount,
-    yearMonth,
-    createdAt: new Date().toISOString(),
-  }
-  await db.put('fixedCostMonthlyRecords', record)
+// The unique (fixed_cost_id, year_month) constraint makes this idempotent, so
+// concurrent calls (e.g. from two open devices) never create duplicates.
+async function generateMonthlyRecords(fixedCosts: FixedCost[], yearMonth: string): Promise<void> {
+  if (fixedCosts.length === 0) return
+  const { error } = await supabase.from('fixed_cost_monthly_records').upsert(
+    fixedCosts.map((fixedCost) => ({
+      profile_id: fixedCost.userId,
+      fixed_cost_id: fixedCost.id,
+      name: fixedCost.name,
+      amount: fixedCost.amount,
+      year_month: yearMonth,
+    })),
+    { onConflict: 'fixed_cost_id,year_month', ignoreDuplicates: true },
+  )
+  if (error) throw error
 }
 
 export async function ensureMonthlyRecordsForCurrentMonth(userId: string): Promise<void> {
-  const yearMonth = getYearMonth()
   const fixedCosts = await listFixedCosts(userId)
-  for (const fixedCost of fixedCosts) {
-    await generateMonthlyRecordForFixedCost(fixedCost, yearMonth)
-  }
+  await generateMonthlyRecords(fixedCosts, getYearMonth())
 }
 
 // --- Derived totals ---

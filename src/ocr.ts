@@ -1,3 +1,5 @@
+import { supabase } from './supabase'
+
 export interface OcrResult {
   amount: number | null
   date: string | null // YYYY-MM-DD, as read from the receipt
@@ -22,9 +24,13 @@ export async function recognizeReceiptAmount(image: File | Blob): Promise<OcrRes
   const imageBase64 = await fileToBase64(image)
   const mediaType = image.type || 'image/jpeg'
 
+  const { data: sessionData } = await supabase.auth.getSession()
+  const accessToken = sessionData.session?.access_token
+  if (!accessToken) throw new Error('not signed in')
+
   const res = await fetch('/api/extract-amount', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
     body: JSON.stringify({ imageBase64, mediaType }),
   })
 

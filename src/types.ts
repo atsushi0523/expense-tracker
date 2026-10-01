@@ -39,7 +39,7 @@ export interface FixedCost {
 export interface FixedCostMonthlyRecord {
   id: string
   userId: string
-  fixedCostId: string
+  fixedCostId: string | null
   name: string
   amount: number
   yearMonth: string // YYYY-MM

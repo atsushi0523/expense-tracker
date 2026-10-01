@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
+import type { Session } from '@supabase/supabase-js'
 import type { Expense, Profile } from './types'
 import { listProfiles } from './db'
+import { supabase } from './supabase'
+import { Login } from './screens/Login'
 import { ProfileSelect } from './screens/ProfileSelect'
 import { Home } from './screens/Home'
 import { Capture } from './screens/Capture'
@@ -23,6 +26,8 @@ function todayInputValue(): string {
 }
 
 export default function App() {
+  const [session, setSession] = useState<Session | null>(null)
+  const [checkingSession, setCheckingSession] = useState(true)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [checkingStoredProfile, setCheckingStoredProfile] = useState(true)
   const [screen, setScreen] = useState<Screen>('home')
@@ -31,17 +36,34 @@ export default function App() {
   const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session)
+      setCheckingSession(false)
+    })
+    const { data } = supabase.auth.onAuthStateChange((_event, newSession) => setSession(newSession))
+    return () => data.subscription.unsubscribe()
+  }, [])
+
+  const accountId = session?.user.id ?? null
+
+  // Re-resolve the remembered profile whenever the logged-in account changes.
+  useEffect(() => {
+    setProfile(null)
+    if (!accountId) {
+      setCheckingStoredProfile(false)
+      return
+    }
     const storedId = localStorage.getItem(CURRENT_USER_KEY)
     if (!storedId) {
       setCheckingStoredProfile(false)
       return
     }
-    listProfiles().then((profiles) => {
-      const found = profiles.find((p) => p.id === storedId) ?? null
-      setProfile(found)
-      setCheckingStoredProfile(false)
-    })
-  }, [])
+    setCheckingStoredProfile(true)
+    listProfiles()
+      .then((profiles) => setProfile(profiles.find((p) => p.id === storedId) ?? null))
+      .catch(() => setProfile(null))
+      .finally(() => setCheckingStoredProfile(false))
+  }, [accountId])
 
   function handleSelectProfile(selected: Profile) {
     localStorage.setItem(CURRENT_USER_KEY, selected.id)
@@ -54,12 +76,21 @@ export default function App() {
     setProfile(null)
   }
 
-  if (checkingStoredProfile) {
+  async function handleSignOut() {
+    localStorage.removeItem(CURRENT_USER_KEY)
+    await supabase.auth.signOut()
+  }
+
+  if (checkingSession || checkingStoredProfile) {
     return <div className="screen screen--center">読み込み中...</div>
   }
 
+  if (!session) {
+    return <Login />
+  }
+
   if (!profile) {
-    return <ProfileSelect onSelect={handleSelectProfile} />
+    return <ProfileSelect onSelect={handleSelectProfile} onSignOut={handleSignOut} />
   }
 
   if (screen === 'capture') {

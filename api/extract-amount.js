@@ -1,8 +1,14 @@
+import { isAuthorized } from '../server/auth.js'
 import { extractAmount } from '../server/extractAmount.js'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'method not allowed' })
+    return
+  }
+
+  if (!(await isAuthorized(req.headers.authorization))) {
+    res.status(401).json({ error: 'unauthorized' })
     return
   }
 

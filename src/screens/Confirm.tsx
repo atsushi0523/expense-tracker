@@ -18,6 +18,7 @@ export function Confirm({ profile, initialAmount, initialDate, initialMemo, onSa
   const [category, setCategory] = useState<Category | null>(null)
   const [memo, setMemo] = useState(initialMemo)
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const amountValue = Number(amount)
   const isValid =
@@ -26,13 +27,20 @@ export function Confirm({ profile, initialAmount, initialDate, initialMemo, onSa
   async function handleSave() {
     if (!isValid || !category) return
     setSaving(true)
-    await addExpense({
-      userId: profile.id,
-      amount: amountValue,
-      date,
-      category,
-      memo: memo.trim(),
-    })
+    setError(null)
+    try {
+      await addExpense({
+        userId: profile.id,
+        amount: amountValue,
+        date,
+        category,
+        memo: memo.trim(),
+      })
+    } catch {
+      setError('保存に失敗しました。通信状況を確認してもう一度お試しください。')
+      setSaving(false)
+      return
+    }
     setSaving(false)
     onSaved()
   }
@@ -69,6 +77,8 @@ export function Confirm({ profile, initialAmount, initialDate, initialMemo, onSa
         <span className="field-label">メモ(任意)</span>
         <input type="text" value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="メモ" />
       </label>
+
+      {error && <p className="error-text">{error}</p>}
 
       <button
         type="button"

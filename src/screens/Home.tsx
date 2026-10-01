@@ -25,17 +25,24 @@ export function Home({ profile, onCapture, onFixedCosts, onSwitchProfile, onSele
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [records, setRecords] = useState<FixedCostMonthlyRecord[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
-    await ensureMonthlyRecordsForCurrentMonth(profile.id)
-    const [expenseList, recordList] = await Promise.all([
-      listExpensesForUser(profile.id),
-      listMonthlyRecordsForUser(profile.id),
-    ])
-    setExpenses(expenseList)
-    setRecords(recordList)
-    setLoading(false)
+    setError(null)
+    try {
+      await ensureMonthlyRecordsForCurrentMonth(profile.id)
+      const [expenseList, recordList] = await Promise.all([
+        listExpensesForUser(profile.id),
+        listMonthlyRecordsForUser(profile.id),
+      ])
+      setExpenses(expenseList)
+      setRecords(recordList)
+    } catch {
+      setError('データの読み込みに失敗しました。通信状況を確認してください。')
+    } finally {
+      setLoading(false)
+    }
   }, [profile.id])
 
   useEffect(() => {
@@ -43,7 +50,12 @@ export function Home({ profile, onCapture, onFixedCosts, onSwitchProfile, onSele
   }, [load, refreshKey])
 
   async function handleDelete(id: string) {
-    await deleteExpense(id)
+    try {
+      await deleteExpense(id)
+    } catch {
+      setError('削除に失敗しました。もう一度お試しください。')
+      return
+    }
     await load()
   }
 
@@ -63,6 +75,8 @@ export function Home({ profile, onCapture, onFixedCosts, onSwitchProfile, onSele
           切替
         </button>
       </header>
+
+      {error && <p className="error-text">{error}</p>}
 
       <div className="home-total-card">
         <div className="home-total-label">今月の合計</div>

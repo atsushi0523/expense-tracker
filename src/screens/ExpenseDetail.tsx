@@ -13,7 +13,13 @@ export function ExpenseDetail({ expense, onDeleted, onBack }: ExpenseDetailProps
 
   async function handleDelete() {
     setDeleting(true)
-    await deleteExpense(expense.id)
+    try {
+      await deleteExpense(expense.id)
+    } catch {
+      setDeleting(false)
+      alert('削除に失敗しました。もう一度お試しください。')
+      return
+    }
     setDeleting(false)
     onDeleted()
   }

@@ -13,11 +13,16 @@ export function FixedCosts({ profile, onDone }: FixedCostsProps) {
   const [amount, setAmount] = useState('')
   const [occurrenceDay, setOccurrenceDay] = useState('')
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
-    const list = await listFixedCosts(profile.id)
-    setFixedCosts(list)
-    setLoading(false)
+    try {
+      setFixedCosts(await listFixedCosts(profile.id))
+    } catch {
+      setError('固定費の読み込みに失敗しました')
+    } finally {
+      setLoading(false)
+    }
   }, [profile.id])
 
   useEffect(() => {
@@ -29,12 +34,18 @@ export function FixedCosts({ profile, onDone }: FixedCostsProps) {
 
   async function handleAdd() {
     if (!isValid) return
-    await addFixedCost({
-      userId: profile.id,
-      name: name.trim(),
-      amount: amountValue,
-      occurrenceDay: occurrenceDay.trim(),
-    })
+    setError(null)
+    try {
+      await addFixedCost({
+        userId: profile.id,
+        name: name.trim(),
+        amount: amountValue,
+        occurrenceDay: occurrenceDay.trim(),
+      })
+    } catch {
+      setError('固定費の登録に失敗しました')
+      return
+    }
     setName('')
     setAmount('')
     setOccurrenceDay('')
@@ -42,7 +53,13 @@ export function FixedCosts({ profile, onDone }: FixedCostsProps) {
   }
 
   async function handleDelete(id: string) {
-    await deleteFixedCost(id)
+    setError(null)
+    try {
+      await deleteFixedCost(id)
+    } catch {
+      setError('固定費の削除に失敗しました')
+      return
+    }
     await load()
   }
 
@@ -50,6 +67,8 @@ export function FixedCosts({ profile, onDone }: FixedCostsProps) {
     <div className="screen">
       <h1 className="screen-title">固定費の設定</h1>
       <p className="screen-subtitle">登録した固定費は毎月自動的に今月の支出として計上されます。</p>
+
+      {error && <p className="error-text">{error}</p>}
 
       {!loading && fixedCosts.length > 0 && (
         <ul className="fixed-cost-list">

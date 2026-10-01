@@ -1,6 +1,6 @@
 # 家計簿 (Expense Tracker)
 
-レシートを撮影するだけで、Claude（Anthropic API）が金額・日付・店名を自動で読み取ってくれるシンプルな家計簿アプリです。React + TypeScript製のフロントエンドと、レシート画像をClaudeに解析させるための薄いExpressバックエンドで構成されています。データはすべてブラウザ内（IndexedDB）に保存され、外部のデータベースは使用しません。
+レシートを撮影するだけで、Claude（Anthropic API）が金額・日付・店名を自動で読み取ってくれるシンプルな家計簿アプリです。React + TypeScript製のフロントエンドと、レシート画像をClaudeに解析させるための薄いExpressバックエンドで構成されています。データはSupabase（PostgreSQL）にクラウド保存され、メールアドレスでログインすればスマホ・PCなどどの端末からでも同じ記録を見られます。
 
 ## 概要
 
@@ -39,24 +39,28 @@
 - 一覧の各項目をタップすると「支出の詳細」画面に遷移し、金額・日付・カテゴリ・メモを確認できます。
 - ホーム画面の一覧・詳細画面のどちらからも支出を削除可能です。
 
-### 7. 複数プロフィール
-- 起動時にプロフィール（名前）を選択、または新規作成できます。
+### 7. ログインと複数プロフィール
+- 最初にメールアドレスとパスワードでアカウント登録・ログインします（Supabase Auth）。ログイン状態はブラウザに保持されます。
+- ログイン後、アカウント内のプロフィール（名前）を選択、または新規作成できます。プロフィール選択画面からログアウトできます。
 - 選択したプロフィールは `localStorage` に保存され、次回起動時も自動的に復元されます。「切替」ボタンでいつでも別プロフィールに切り替え可能。
 - 支出・固定費・月次記録はすべてプロフィール（`userId`）単位で分離されているため、家族などで共有端末を使っても支出が混ざりません。
 
-### 8. オフライン・ローカル保存
-- すべてのデータ（プロフィール・支出・固定費・固定費月次記録）はブラウザの IndexedDB（[idb](https://github.com/jakearchibald/idb)）にローカル保存されます。
+### 8. クラウド保存
+- すべてのデータ（プロフィール・支出・固定費・固定費月次記録）は Supabase の PostgreSQL に保存されます。テーブル定義は `supabase/schema.sql` です。
+- 行レベルセキュリティ（RLS）により、各アカウントは自分のデータしか読み書きできません。
+- レシート解析API（`/api/extract-amount`）もログイン中のユーザーからのリクエストのみ受け付けます。
 - レシート画像そのものは保存されません（AI解析後は破棄され、抽出結果の数値・文字列のみが保存されます）。
 
 ## 使い方
 
-1. 初回起動時、名前を入力してプロフィールを作成（または既存のプロフィールを選択）します。
-2. ホーム画面の「レシートを撮る」をタップし、カメラでレシートを撮影するか、画像ファイルを選択します。
-3. Claudeが金額・日付・店名を自動抽出し、「内容の確認」画面に表示されます。内容が正しいか確認し、必要なら金額・日付・メモを修正、カテゴリを選択して「保存する」をタップします。
-4. レシートがない場合は「手入力に切り替える」から直接金額などを入力して保存できます。
-5. 家賃やサブスクなど毎月発生する費用は「固定費の設定」から登録すると、以降は毎月ホームを開くたびに自動的にその月の支出として計上されます。
-6. ホーム画面では今月の合計金額、カテゴリ別の円グラフ、直近5件の支出一覧が確認できます。一覧の項目をタップすると詳細画面が開き、そこから削除もできます。
-7. 家族など複数人で使う場合は、ホーム画面右上の「切替」からプロフィールを切り替えます。
+1. 初回はメールアドレスとパスワードでアカウントを登録し、ログインします。
+2. 名前を入力してプロフィールを作成（または既存のプロフィールを選択）します。
+3. ホーム画面の「レシートを撮る」をタップし、カメラでレシートを撮影するか、画像ファイルを選択します。
+4. Claudeが金額・日付・店名を自動抽出し、「内容の確認」画面に表示されます。内容が正しいか確認し、必要なら金額・日付・メモを修正、カテゴリを選択して「保存する」をタップします。
+5. レシートがない場合は「手入力に切り替える」から直接金額などを入力して保存できます。
+6. 家賃やサブスクなど毎月発生する費用は「固定費の設定」から登録すると、以降は毎月ホームを開くたびに自動的にその月の支出として計上されます。
+7. ホーム画面では今月の合計金額、カテゴリ別の円グラフ、直近5件の支出一覧が確認できます。一覧の項目をタップすると詳細画面が開き、そこから削除もできます。
+8. 家族など複数人で使う場合は、ホーム画面右上の「切替」からプロフィールを切り替えます。
 
 ## 技術構成
 
@@ -65,7 +69,7 @@
 | フロントエンド | React 18 + TypeScript + Vite |
 | バックエンド | Express（ローカル開発用）/ Vercel Serverless Functions（本番用）。ロジックは `server/extractAmount.js` に共通化 |
 | AI | Claude API（`@anthropic-ai/sdk`, モデル: `claude-haiku-4-5`, JSON Schema構造化出力） |
-| データ保存 | IndexedDB（`idb`） |
+| データ保存・認証 | Supabase（PostgreSQL + Auth, `@supabase/supabase-js`） |
 
 ## セットアップ
 
@@ -75,15 +79,26 @@
 npm install
 ```
 
-### 2. Claude APIキーの設定
+### 2. Supabaseプロジェクトの作成
 
-[Anthropic Console](https://console.anthropic.com) でAPIキーを発行し、プロジェクト直下の `.env.local` に設定します（このファイルは `.gitignore` によりコミットされません）。
+1. [Supabase](https://supabase.com) でプロジェクトを作成します（無料プランで可）。
+2. ダッシュボードの **SQL Editor** で `supabase/schema.sql` の内容を貼り付けて実行し、テーブルとRLSポリシーを作成します。
+3. **Project Settings → API** から「Project URL」と「anon public」キーを控えます。
+4. **Authentication → URL Configuration** の「Site URL」に、本番のURL（例: `https://xxxx.vercel.app`）を設定します。確認メールのリンク先になります。
+
+### 3. 環境変数の設定
+
+[Anthropic Console](https://console.anthropic.com) でAPIキーを発行し、Supabaseの値とあわせてプロジェクト直下の `.env.local` に設定します（このファイルは `.gitignore` によりコミットされません）。
 
 ```
 ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxxxxxxxxxx
+VITE_SUPABASE_URL=https://xxxxxxxx.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJhbGciOi...
 ```
 
-### 3. 開発サーバーの起動
+`VITE_` で始まる2つはブラウザに公開される前提の値です（anonキーはRLSで保護されているため公開して問題ありません）。`ANTHROPIC_API_KEY` はサーバー側でのみ使われます。
+
+### 4. 開発サーバーの起動
 
 バックエンド（レシート解析API）とフロントエンドを、それぞれ別のターミナルで起動します。
 
@@ -97,12 +112,12 @@ npm run dev
 
 ブラウザで `http://localhost:5173` を開くとアプリが使えます。Viteが `/api` へのリクエストを自動でバックエンドにプロキシします。
 
-### 4. Vercelへのデプロイ
+### 5. Vercelへのデプロイ
 
 本番環境では `server/index.js`（Express）は使われません。代わりに `api/extract-amount.js` がVercel Serverless Functionとしてデプロイされ、同じロジック（`server/extractAmount.js`）を実行します。
 
 1. Vercelにこのリポジトリをインポートします（Framework Preset: Vite のまま自動検出でOK）。
-2. Vercelプロジェクトの **Settings → Environment Variables** に `ANTHROPIC_API_KEY` を設定します（`.env.local` はコミットされないため、ここで別途設定が必須です）。
+2. Vercelプロジェクトの **Settings → Environment Variables** に `ANTHROPIC_API_KEY`・`VITE_SUPABASE_URL`・`VITE_SUPABASE_ANON_KEY` の3つを設定します（`.env.local` はコミットされないため、ここで別途設定が必須です）。
 3. デプロイすると、静的ファイル（`dist/`）に加えて `api/extract-amount.js` がサーバーレス関数として公開され、`/api/extract-amount` へのリクエストを処理します。
 
 > 注意: Vercel Serverless Functionsのリクエストボディには約4.5MBの上限があります。大きな写真をbase64化すると超過する可能性があるため、極端に大きい画像では読み取りに失敗することがあります。
@@ -121,13 +136,19 @@ npm run dev
 ```
 .
 ├── api/
-│   └── extract-amount.js      # 本番用: Vercel Serverless Function（POST /api/extract-amount）
+│   ├── extract-amount.js      # 本番用: Vercel Serverless Function（POST /api/extract-amount）
+│   └── keep-alive.js          # 本番用: Supabase無料プランの一時停止を防ぐ定期実行（Vercel Cron）
 ├── server/
+│   ├── auth.js                # Supabaseのアクセストークンを検証（ログインユーザーのみ許可）
+│   ├── supabaseClient.js      # サーバー側のSupabaseクライアント
 │   ├── extractAmount.js       # レシート画像→Claudeで金額・日付・店名を抽出する共通ロジック
 │   └── index.js                # ローカル開発用: Expressサーバー（同ロジックをラップ）
+├── supabase/
+│   └── schema.sql             # テーブル定義とRLSポリシー（SQL Editorで実行）
 ├── src/
 │   ├── screens/
-│   │   ├── ProfileSelect.tsx   # プロフィール選択・作成
+│   │   ├── Login.tsx           # ログイン・アカウント登録
+│   │   ├── ProfileSelect.tsx   # プロフィール選択・作成・ログアウト
 │   │   ├── Home.tsx            # 今月の合計・円グラフ・最近の支出一覧
 │   │   ├── Capture.tsx         # レシート撮影・画像選択
 │   │   ├── Confirm.tsx         # OCR結果の確認・修正・保存
@@ -136,7 +157,8 @@ npm run dev
 │   ├── components/
 │   │   ├── CategoryPicker.tsx    # カテゴリ選択UI
 │   │   └── CategoryPieChart.tsx  # カテゴリ別内訳の円グラフ
-│   ├── db.ts                   # IndexedDBアクセス層（プロフィール/支出/固定費/集計ロジック）
+│   ├── db.ts                   # Supabaseアクセス層（プロフィール/支出/固定費/集計ロジック）
+│   ├── supabase.ts             # Supabaseクライアント
 │   ├── ocr.ts                  # レシート解析APIを呼び出すクライアント
 │   ├── types.ts                # 型定義（Profile, Expense, FixedCost 等）
 │   └── App.tsx                 # 画面遷移の制御
@@ -147,4 +169,7 @@ npm run dev
 
 - `ANTHROPIC_API_KEY` はサーバー側（ローカルは `server/index.js`、本番は `api/extract-amount.js`）でのみ使用され、フロントエンドのコードやブラウザには一切露出しません。
 - Claudeの読み取り結果（金額・日付・店名）は必ず確認画面で表示され、誤りがあれば保存前に手動で修正できます。
-- データはブラウザのIndexedDBにのみ保存されるため、ブラウザのデータを消去する、または別の端末・ブラウザからアクセスすると過去のデータは参照できません。バックアップやエクスポート機能は現時点ではありません。
+- データはSupabaseに保存されるため、ブラウザのデータを消去しても、別の端末からログインしても記録は残ります。
+- Supabaseの無料プランは、1週間アクセスがないとプロジェクトが一時停止されます。これを防ぐため、Vercel Cron（`vercel.json`）が毎日1回 `api/keep-alive.js` を呼び出し、Supabaseに小さなクエリを送ります。万一停止しても、ダッシュボードから再開すればデータはそのまま残ります。
+- Vercelの環境変数に `CRON_SECRET`（任意のランダムな文字列）を設定すると、`/api/keep-alive` はVercel Cronからの呼び出しのみ受け付けます。
+- 以前のバージョン（IndexedDB保存）で記録したデータは自動では移行されません。

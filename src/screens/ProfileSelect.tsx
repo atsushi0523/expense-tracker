@@ -4,25 +4,31 @@ import { createProfile, listProfiles } from '../db'
 
 interface ProfileSelectProps {
   onSelect: (profile: Profile) => void
+  onSignOut: () => void
 }
 
-export function ProfileSelect({ onSelect }: ProfileSelectProps) {
+export function ProfileSelect({ onSelect, onSignOut }: ProfileSelectProps) {
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [newName, setNewName] = useState('')
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    listProfiles().then((list) => {
-      setProfiles(list)
-      setLoading(false)
-    })
+    listProfiles()
+      .then(setProfiles)
+      .catch(() => setError('プロフィールの読み込みに失敗しました'))
+      .finally(() => setLoading(false))
   }, [])
 
   async function handleCreate() {
     const trimmed = newName.trim()
     if (!trimmed) return
-    const profile = await createProfile(trimmed)
-    onSelect(profile)
+    try {
+      const profile = await createProfile(trimmed)
+      onSelect(profile)
+    } catch {
+      setError('プロフィールの作成に失敗しました')
+    }
   }
 
   if (loading) {
@@ -59,6 +65,12 @@ export function ProfileSelect({ onSelect }: ProfileSelectProps) {
           作成してはじめる
         </button>
       </div>
+
+      {error && <p className="error-text">{error}</p>}
+
+      <button type="button" className="link-button" onClick={onSignOut}>
+        ログアウト
+      </button>
     </div>
   )
 }
